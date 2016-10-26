@@ -2,7 +2,7 @@ from django.http import HttpRequest
 from django.core.urlresolvers import reverse
 
 from .base import BoardAppTest
-from board.views import new_post, post_list
+from board.views import new_post, post_list, modify_post
 from board.models import Post, Board, Comment
 
 
@@ -88,16 +88,16 @@ class DeletePostTest(BoardAppTest):
         delete_post = Post.objects.create(board=self.default_board, title='delete post', content='content')
         other_post = Post.objects.create(board=self.default_board, title='other post', content='content')
 
-        self.assertEqual(delete_post.is_delete, False)
-        self.assertEqual(other_post.is_delete, False)
+        self.assertEqual(delete_post.is_deleted, False)
+        self.assertEqual(other_post.is_deleted, False)
 
         self.client.post(reverse('board:delete_post', args=[self.default_board.slug, delete_post.id]))
 
         delete_post.refresh_from_db()
         other_post.refresh_from_db()
 
-        self.assertEqual(delete_post.is_delete, True)
-        self.assertEqual(other_post.is_delete, False)
+        self.assertEqual(delete_post.is_deleted, True)
+        self.assertEqual(other_post.is_deleted, False)
 
     def test_redirect_to_post_list_after_delete_post(self):
         delete_post = Post.objects.create(board=self.default_board, title='delete post', content='content')
@@ -108,12 +108,12 @@ class DeletePostTest(BoardAppTest):
     def test_does_not_view_but_remain_in_DB_after_delete(self):
         delete_post = Post.objects.create(board=self.default_board, title='delete post', content='content')
 
-        viewed_list = Post.objects.filter(is_delete=False)
+        viewed_list = Post.objects.filter(is_deleted=False)
         self.assertIn(delete_post, viewed_list)
 
         self.client.post(reverse('board:delete_post', args=[self.default_board.slug, delete_post.id]))
 
-        viewed_list = Post.objects.filter(is_delete=False)
+        viewed_list = Post.objects.filter(is_deleted=False)
         self.assertNotIn(delete_post, viewed_list)
 
         all_list = Post.objects.all()
@@ -177,6 +177,23 @@ class PostViewTest(BoardAppTest):
         self.assertContains(response, 'correct post of content')
         self.assertNotContains(response, 'other post of title')
         self.assertNotContains(response, 'other post of content')
+
+
+class ModifyPostTest(BoardAppTest):
+    def test_use_modify_template(self):
+        response = self.client.get(reverse('board:modify_post', args=[self.default_board.slug]))
+        self.assertTemplateUsed(response, 'modify_post.html')
+
+    def test_modify_post_page_redirects_after_POST(self):
+        request = HttpRequest()
+        request.method = 'POST'
+        request.POST['post_title_text'] = 'MODIFY POST TITLE'
+        request.POST['post_content_text'] = 'MODIFY POST CONTENT'
+
+        response = modify_post(request, self.default_board.slug)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['location'], reverse('board:modify_post', args=[self.default_board.slug]))
 
 
 class NewCommentTest(BoardAppTest):
